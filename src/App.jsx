@@ -12,6 +12,8 @@ const API_OPTIONS = {
   },
 };
 
+const heroBanner = `${import.meta.env.BASE_URL}hero.png`;
+
 const App = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [movieList, setMovieList] = useState([]);
@@ -37,7 +39,7 @@ const App = () => {
       setErrorMessage('Error fetching movies. Please try again later');
       setMovieList([]);
     } finally {
-      setIsLoading(true);
+      setIsLoading(false);
     }
   };
 
@@ -50,7 +52,7 @@ const App = () => {
       <div className="pattern">
         <div className="wrapper">
           <header>
-            <img src="/hero.png" alt="Hero Banner" />
+            <img src={heroBanner} alt="Hero Banner" />
             <h1>
               Find <span className="text-gradient">Movie</span> You'll Enjoy Without Hassle
             </h1>
