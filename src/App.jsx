@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Search from './components/Search';
 import Spinner from './components/Spinner';
+import MovieCard from './components/MovieCard';
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
@@ -20,14 +21,15 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const fetchMovies = async () => {
+  const fetchMovies = async (query, signal) => {
     setIsLoading(true);
     setErrorMessage('');
-    const startedAt = Date.now();
 
     try {
-      const endpoint = `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
-      const response = await fetch(endpoint, API_OPTIONS);
+      const endpoint = query
+        ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=1`
+        : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc&include_adult=false&language=en-US&page=1`;
+      const response = await fetch(endpoint, { ...API_OPTIONS, signal });
 
       if (!response.ok) {
         throw new Error('Failed to fetch movies');
@@ -36,20 +38,33 @@ const App = () => {
       const data = await response.json();
       setMovieList(data.results || []);
     } catch (error) {
+      if (error.name === 'AbortError') {
+        return;
+      }
+
       console.error(`ERROR FETCHING MOVIES: ${error}`);
       setErrorMessage('Error fetching movies. Please try again later');
       setMovieList([]);
     } finally {
-      const elapsed = Date.now() - startedAt;
-      const remaining = Math.max(0, 500 - elapsed);
-
-      setTimeout(() => setIsLoading(false), remaining);
+      if (!signal.aborted) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchMovies();
-  }, []);
+    const controller = new AbortController();
+    const query = searchTerm.trim();
+    const delay = query ? 400 : 0;
+    const timeoutId = setTimeout(() => {
+      fetchMovies(query, controller.signal);
+    }, delay);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [searchTerm]);
 
   return (
     <main>
@@ -61,11 +76,23 @@ const App = () => {
               Find <span className="text-gradient">Movie</span> You'll Enjoy Without Hassle
             </h1>
 
-            <Search searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+            <Search
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              isLoading={isLoading}
+            />
          </header>
 
-          <section className="all-movies">
-            <h2>All Movies</h2>
+          <section
+            className={`all-movies ${isLoading && movieList.length ? 'is-refreshing' : ''}`}
+            aria-busy={isLoading}
+          >
+            <div className="section-heading">
+              <h2>All Movies</h2>
+              {!isLoading && !errorMessage && movieList.length > 0 && (
+                <span>{movieList.length} films</span>
+              )}
+            </div>
 
             {isLoading ? (
               <Spinner />
@@ -74,11 +101,13 @@ const App = () => {
             ) : (
               <ul>
                 {movieList.map((movie) => (
-                  <li key={movie.id} className="text-white">
-                    {movie.title}
-                  </li>
+                <MovieCard key={movie.id} movie={movie} />
                 ))} 
               </ul>
+            )}
+
+            {!isLoading && !errorMessage && movieList.length === 0 && (
+              <p className="empty-state">No movies found.</p>
             )}
           </section>
         </div>
