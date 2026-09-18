@@ -22,15 +22,18 @@ const App = () => {
   const [trendingMovies, setTrendingMovies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
 
-  const fetchMovies = async (query, signal) => {
+  const fetchMovies = async (query, currentPage, signal) => {
     setIsLoading(true);
     setErrorMessage('');
 
     try {
       const endpoint = query
-        ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=1`
-        : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc&include_adult=false&language=en-US&page=1`;
+        ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=${currentPage}`
+        : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc&include_adult=false&language=en-US&page=${currentPage}`;
       const response = await fetch(endpoint, { ...API_OPTIONS, signal });
 
       if (!response.ok) {
@@ -40,14 +43,16 @@ const App = () => {
 
       const data = await response.json();
       setMovieList(data.results || []);
+      setTotalPages(Math.min(data.total_pages || 1, 500));
+      setTotalResults(data.total_results || 0);
 
-      if (query) {
+      if (query && currentPage === 1) {
         setTrendingMovies(
           [...(data.results || [])]
             .sort((firstMovie, secondMovie) => secondMovie.popularity - firstMovie.popularity)
             .slice(0, 6),
         );
-      } else {
+      } else if (!query && currentPage === 1) {
         const trendingResponse = await fetch(
           `${API_BASE_URL}/trending/movie/week?language=en-US`,
           { ...API_OPTIONS, signal },
@@ -67,6 +72,8 @@ const App = () => {
       setErrorMessage(`Unable to load movies: ${error.message}`);
       setMovieList([]);
       setTrendingMovies([]);
+      setTotalPages(1);
+      setTotalResults(0);
     } finally {
       if (!signal.aborted) {
         setIsLoading(false);
@@ -79,14 +86,19 @@ const App = () => {
     const query = searchTerm.trim();
     const delay = query ? 400 : 0;
     const timeoutId = setTimeout(() => {
-      fetchMovies(query, controller.signal);
+      fetchMovies(query, page, controller.signal);
     }, delay);
 
     return () => {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [searchTerm]);
+  }, [searchTerm, page]);
+
+  const handleSearchTermChange = (value) => {
+    setPage(1);
+    setSearchTerm(value);
+  };
 
   return (
     <main>
@@ -100,7 +112,7 @@ const App = () => {
 
             <Search
               searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
+              setSearchTerm={handleSearchTermChange}
               isLoading={isLoading}
             />
          </header>
@@ -108,7 +120,7 @@ const App = () => {
           <Trending
             movies={trendingMovies}
             title={searchTerm.trim() ? 'Because you searched' : 'Trending this week'}
-            onSelect={setSearchTerm}
+            onSelect={handleSearchTermChange}
           />
 
           <section
@@ -117,8 +129,8 @@ const App = () => {
           >
             <div className="section-heading">
               <h2>All Movies</h2>
-              {!isLoading && !errorMessage && movieList.length > 0 && (
-                <span>{movieList.length} films</span>
+              {!isLoading && !errorMessage && totalResults > 0 && (
+                <span>{totalResults.toLocaleString()} films</span>
               )}
             </div>
 
@@ -136,6 +148,43 @@ const App = () => {
 
             {!isLoading && !errorMessage && movieList.length === 0 && (
               <p className="empty-state">No movies found.</p>
+            )}
+
+            {!isLoading && !errorMessage && totalPages > 1 && (
+              <nav className="pagination" aria-label="Movie pages">
+                <button
+                  type="button"
+                  aria-label="Previous page"
+                  disabled={page === 1}
+                  onClick={() => setPage((currentPage) => currentPage - 1)}
+                >
+                  <span aria-hidden="true">&#8592;</span>
+                </button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, index) => {
+                  const firstPage = Math.min(Math.max(page - 2, 1), Math.max(totalPages - 4, 1));
+                  const pageNumber = firstPage + index;
+
+                  return (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      className={pageNumber === page ? 'active' : ''}
+                      aria-current={pageNumber === page ? 'page' : undefined}
+                      onClick={() => setPage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  aria-label="Next page"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((currentPage) => currentPage + 1)}
+                >
+                  <span aria-hidden="true">&#8594;</span>
+                </button>
+              </nav>
             )}
           </section>
         </div>
