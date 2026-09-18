@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Search from './components/Search';
 import Spinner from './components/Spinner';
 import MovieCard from './components/MovieCard';
+import Trending from './components/Trending';
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY?.trim();
 
@@ -18,6 +19,7 @@ const heroBanner = `${import.meta.env.BASE_URL}hero.png`;
 const App = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [movieList, setMovieList] = useState([]);
+  const [trendingMovies, setTrendingMovies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -38,6 +40,24 @@ const App = () => {
 
       const data = await response.json();
       setMovieList(data.results || []);
+
+      if (query) {
+        setTrendingMovies(
+          [...(data.results || [])]
+            .sort((firstMovie, secondMovie) => secondMovie.popularity - firstMovie.popularity)
+            .slice(0, 6),
+        );
+      } else {
+        const trendingResponse = await fetch(
+          `${API_BASE_URL}/trending/movie/week?language=en-US`,
+          { ...API_OPTIONS, signal },
+        );
+
+        if (trendingResponse.ok) {
+          const trendingData = await trendingResponse.json();
+          setTrendingMovies((trendingData.results || []).slice(0, 6));
+        }
+      }
     } catch (error) {
       if (error.name === 'AbortError') {
         return;
@@ -46,6 +66,7 @@ const App = () => {
       console.error(`ERROR FETCHING MOVIES: ${error}`);
       setErrorMessage(`Unable to load movies: ${error.message}`);
       setMovieList([]);
+      setTrendingMovies([]);
     } finally {
       if (!signal.aborted) {
         setIsLoading(false);
@@ -83,6 +104,12 @@ const App = () => {
               isLoading={isLoading}
             />
          </header>
+
+          <Trending
+            movies={trendingMovies}
+            title={searchTerm.trim() ? 'Because you searched' : 'Trending this week'}
+            onSelect={setSearchTerm}
+          />
 
           <section
             className={`all-movies ${isLoading && movieList.length ? 'is-refreshing' : ''}`}
