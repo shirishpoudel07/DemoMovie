@@ -17,6 +17,8 @@ concurrency:
 
 jobs:
   build:
+    environment:
+      name: github-pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,7 +36,12 @@ jobs:
       - name: Build
         env:
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
-        run: npm run build
+        run: |
+          if [ -z "$VITE_TMDB_API_KEY" ]; then
+            echo "VITE_TMDB_API_KEY is missing from the github-pages environment or repository secrets."
+            exit 1
+          fi
+          npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
