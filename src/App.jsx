@@ -3,7 +3,7 @@ import Search from './components/Search';
 import Spinner from './components/Spinner';
 import MovieCard from './components/MovieCard';
 const API_BASE_URL = 'https://api.themoviedb.org/3';
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+const API_KEY = import.meta.env.VITE_TMDB_API_KEY?.trim();
 
 const API_OPTIONS = {
   method: 'GET',
@@ -32,7 +32,8 @@ const App = () => {
       const response = await fetch(endpoint, { ...API_OPTIONS, signal });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch movies');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.status_message || `TMDB request failed (${response.status})`);
       }
 
       const data = await response.json();
@@ -43,7 +44,7 @@ const App = () => {
       }
 
       console.error(`ERROR FETCHING MOVIES: ${error}`);
-      setErrorMessage('Error fetching movies. Please try again later');
+      setErrorMessage(`Unable to load movies: ${error.message}`);
       setMovieList([]);
     } finally {
       if (!signal.aborted) {
